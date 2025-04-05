@@ -22,7 +22,7 @@ public class PhoneInfoParser {
         for (String line : lines) {
             String normalizedLine = line.toLowerCase()
                     .replaceAll("[^a-zа-яё0-9]", "")
-                    .replace("iphоnе", "iphone"); // Исправление кириллических символов
+                    .replace("iphоnе", "iphone");
             if (normalizedLine.contains("iphone") || normalizedLine.contains("айфон")) {
                 String model = line.replaceAll("(?i).*?(iphone|айфон)", "")
                         .replaceAll("[^0-9a-zA-Zа-яА-ЯЁё\\s]", "")
@@ -41,7 +41,7 @@ public class PhoneInfoParser {
             String lowerLine = line.toLowerCase();
             if (lowerLine.contains("память")) {
                 String memory = extractValueAfterColon(line)
-                        .replaceAll("(?i)[^0-9]|gb|гб", "") // Удаляем всё, кроме цифр, и существующие единицы
+                        .replaceAll("(?i)[^0-9]|gb|гб", "")
                         .trim();
 
                 if (!memory.isEmpty()) {
@@ -81,7 +81,7 @@ public class PhoneInfoParser {
 
     private static void parseCondition(List<String> lines, Map<String, String> result) {
         for (String line : lines) {
-            String normalizedLine = line.replaceAll("^[\\s•\\-]+", "").trim(); // Нормализация начала строки
+            String normalizedLine = line.replaceAll("^[\\s•\\-]+", "").trim();
             if (normalizedLine.toLowerCase().startsWith("состояние")) {
                 String condition = extractValueAfterColon(line)
                         .replaceAll("[^а-яёА-ЯЁ\\s().,-]", "").trim();
@@ -95,7 +95,7 @@ public class PhoneInfoParser {
 
     private static void parseKit(List<String> lines, Map<String, String> result) {
         for (String line : lines) {
-            String normalizedLine = line.replaceAll("^[\\s•\\-]+", "").trim(); // Нормализация начала строки
+            String normalizedLine = line.replaceAll("^[\\s•\\-]+", "").trim();
             if (normalizedLine.toLowerCase().startsWith("комплект")) {
                 String kit = extractValueAfterColon(line)
                         .replaceAll("[^а-яёА-ЯЁ\\s.,-]", "").trim();
@@ -108,7 +108,7 @@ public class PhoneInfoParser {
     }
 
     private static String extractValueAfterColon(String line) {
-        return Arrays.stream(line.split("\\s*[:>\\-]\\s*", 2)) // Учет пробелов вокруг разделителей
+        return Arrays.stream(line.split("\\s*[:>\\-]\\s*", 2))
                 .skip(1)
                 .findFirst()
                 .map(String::trim)

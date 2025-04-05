@@ -38,7 +38,6 @@ public class PhoneSalesTracker {
         frame.setSize(1000, 600);
         frame.setLayout(new BorderLayout());
 
-        // Создаем текстовое поле для парсинга
         JTextArea parseTextArea = new JTextArea(5, 40);
         parseTextArea.setLineWrap(true);
         JScrollPane parseScrollPane = new JScrollPane(parseTextArea);
@@ -51,7 +50,6 @@ public class PhoneSalesTracker {
         parsePanel.add(parseScrollPane, BorderLayout.CENTER);
         parsePanel.add(parseButton, BorderLayout.SOUTH);
 
-        // Основная таблица
         String[] columnNames = {
                 "Информация о телефоне",
                 "Дата покупки",
@@ -60,7 +58,7 @@ public class PhoneSalesTracker {
                 "Цена продажи",
                 "Дней в наличии",
                 "Выручка",
-                "Заработок в день" // Добавленная колонка
+                "Заработок в день"
         };
         tableModel = new DefaultTableModel(columnNames, 0);
         table = new JTable(tableModel);
@@ -68,12 +66,10 @@ public class PhoneSalesTracker {
 
         frame.add(scrollPane, BorderLayout.CENTER);
 
-        // Панель для ввода данных
         JPanel inputPanel = new JPanel();
         inputPanel.setLayout(new BoxLayout(inputPanel, BoxLayout.Y_AXIS));
         inputPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Панель с полями ввода
         JPanel fieldsPanel = new JPanel(new GridLayout(6, 2, 5, 5));
         fieldsPanel.add(new JLabel("Информация о телефоне:"));
         phoneInfoField = new JTextField();
@@ -95,12 +91,10 @@ public class PhoneSalesTracker {
         salePriceField = new JTextField();
         fieldsPanel.add(salePriceField);
 
-        // Добавляем все панели в inputPanel
         inputPanel.add(fieldsPanel);
-        inputPanel.add(Box.createVerticalStrut(10)); // Отступ
+        inputPanel.add(Box.createVerticalStrut(10));
         inputPanel.add(parsePanel);
 
-        // Кнопки
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
 
         JButton addButton = new JButton("Добавить запись");
@@ -119,21 +113,19 @@ public class PhoneSalesTracker {
         clearButton.addActionListener(e -> tableModel.setRowCount(0));
         buttonPanel.add(clearButton);
 
-        // Добавляем все основные компоненты в frame
         frame.add(inputPanel, BorderLayout.NORTH);
         frame.add(buttonPanel, BorderLayout.SOUTH);
 
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
 
-        // Добавьте в конец метода createAndShowGUI() после создания таблицы:
         table.setDefaultRenderer(Double.class, new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
                                                            boolean isSelected, boolean hasFocus, int row, int column) {
                 Component c = super.getTableCellRendererComponent(table, value,
                         isSelected, hasFocus, row, column);
-                if (column == 7) { // 7 - индекс колонки "Заработок в день"
+                if (column == 7) {
                     setText(String.format("%.2f", (double)value));
                 }
                 return c;
@@ -235,7 +227,6 @@ public class PhoneSalesTracker {
                     dailyProfit
             });
 
-            // Очищаем поля ввода
             phoneInfoField.setText("");
             purchaseDateField.setText("");
             saleDateField.setText("");
@@ -263,12 +254,10 @@ public class PhoneSalesTracker {
         File fileToImport = fileChooser.getSelectedFile();
 
         try (Workbook workbook = WorkbookFactory.create(new FileInputStream(fileToImport))) {
-            Sheet sheet = workbook.getSheetAt(0); // Берем первый лист
+            Sheet sheet = workbook.getSheetAt(0);
 
-            // Очищаем текущую таблицу
             tableModel.setRowCount(0);
 
-            // Пропускаем заголовок (первую строку)
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
@@ -342,13 +331,11 @@ public class PhoneSalesTracker {
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("Продажи телефонов");
 
-            // Создаем заголовки
             Row headerRow = sheet.createRow(0);
             for (int i = 0; i < tableModel.getColumnCount(); i++) {
                 headerRow.createCell(i).setCellValue(tableModel.getColumnName(i));
             }
 
-            // Заполняем данные
             for (int row = 0; row < tableModel.getRowCount(); row++) {
                 Row excelRow = sheet.createRow(row + 1);
                 for (int col = 0; col < tableModel.getColumnCount(); col++) {
@@ -363,12 +350,10 @@ public class PhoneSalesTracker {
                 }
             }
 
-            // Авторазмер колонок
             for (int i = 0; i < tableModel.getColumnCount(); i++) {
                 sheet.autoSizeColumn(i);
             }
 
-            // Сохраняем файл
             try (FileOutputStream outputStream = new FileOutputStream(fileToSave)) {
                 workbook.write(outputStream);
             }

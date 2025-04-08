@@ -5,6 +5,11 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
+import org.jfree.data.category.DefaultCategoryDataset;
+import org.jfree.data.general.DefaultPieDataset;
 
 import java.awt.*;
 import java.awt.Color;
@@ -15,12 +20,14 @@ import java.io.FileOutputStream;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.Map;
 
 public class PhoneSalesTracker {
     private JFrame frame;
     private JTable table;
     private DefaultTableModel tableModel;
+    private JTextField modelField;
     private JTextField phoneInfoField;
     private JTextField purchaseDateField;
     private JTextField saleDateField;
@@ -28,6 +35,9 @@ public class PhoneSalesTracker {
     private JTextField salePriceField;
     private DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
+    JPanel chartsPanel;
+    JPanel tablePanel;
+    JTabbedPane tabbedPane;
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new PhoneSalesTracker().createAndShowGUI());
     }
@@ -35,9 +45,22 @@ public class PhoneSalesTracker {
     private void createAndShowGUI() {
         frame = new JFrame("Учет продаж телефонов");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1000, 600);
-        frame.setLayout(new BorderLayout());
+        frame.setSize(1200, 700);
 
+        tabbedPane = new JTabbedPane();
+
+        tablePanel = createTablePanel();
+        tabbedPane.addTab("Таблица", tablePanel);
+
+        chartsPanel = createChartsPanel();
+        tabbedPane.addTab("Графики", chartsPanel);
+
+        frame.add(tabbedPane, BorderLayout.CENTER);
+        frame.setLocationRelativeTo(null);
+        frame.setVisible(true);
+    }
+    private JPanel createTablePanel() {
+        JPanel panel = new JPanel(new BorderLayout());
         JTextArea parseTextArea = new JTextArea(5, 40);
         parseTextArea.setLineWrap(true);
         JScrollPane parseScrollPane = new JScrollPane(parseTextArea);
@@ -51,7 +74,8 @@ public class PhoneSalesTracker {
         parsePanel.add(parseButton, BorderLayout.SOUTH);
 
         String[] columnNames = {
-                "Информация о телефоне",
+                "Общие сведения о телефоне",
+                "Модель телефона и память",
                 "Дата покупки",
                 "Дата продажи",
                 "Цена покупки",
@@ -64,13 +88,19 @@ public class PhoneSalesTracker {
         table = new JTable(tableModel);
         JScrollPane scrollPane = new JScrollPane(table);
 
-        frame.add(scrollPane, BorderLayout.CENTER);
+        panel.add(scrollPane, BorderLayout.CENTER);
 
         JPanel inputPanel = new JPanel();
         inputPanel.setLayout(new BoxLayout(inputPanel, BoxLayout.Y_AXIS));
         inputPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         JPanel fieldsPanel = new JPanel(new GridLayout(6, 2, 5, 5));
+
+
+        fieldsPanel.add(new JLabel("Модель телефона/GB"));
+        modelField = new JTextField();
+        fieldsPanel.add(modelField);
+
         fieldsPanel.add(new JLabel("Информация о телефоне:"));
         phoneInfoField = new JTextField();
         fieldsPanel.add(phoneInfoField);
@@ -101,6 +131,10 @@ public class PhoneSalesTracker {
         addButton.addActionListener(this::addRecord);
         buttonPanel.add(addButton);
 
+        JButton deleteButton = new JButton("Удалить запись");
+        deleteButton.addActionListener(this::deleteSelectedRecord);
+        buttonPanel.add(deleteButton);
+
         JButton importButton = new JButton("Импорт из Excel");
         importButton.addActionListener(this::importFromExcel);
         buttonPanel.add(importButton);
@@ -110,29 +144,115 @@ public class PhoneSalesTracker {
         buttonPanel.add(exportButton);
 
         JButton clearButton = new JButton("Очистить таблицу");
-        clearButton.addActionListener(e -> tableModel.setRowCount(0));
+        clearButton.addActionListener(e -> {
+            tableModel.setRowCount(0);
+            updateCharts();
+        });
         buttonPanel.add(clearButton);
 
-        frame.add(inputPanel, BorderLayout.NORTH);
-        frame.add(buttonPanel, BorderLayout.SOUTH);
+        panel.add(inputPanel, BorderLayout.NORTH);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
 
-        frame.setLocationRelativeTo(null);
-        frame.setVisible(true);
+        panel.setVisible(true);
 
-        table.setDefaultRenderer(Double.class, new DefaultTableCellRenderer() {
+        table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
-                                                           boolean isSelected, boolean hasFocus, int row, int column) {
+                                                           boolean isSelected, boolean hasFocus,
+                                                           int row, int column) {
                 Component c = super.getTableCellRendererComponent(table, value,
                         isSelected, hasFocus, row, column);
-                if (column == 7) {
-                    setText(String.format("%.2f", (double)value));
+
+                if (value instanceof Double) {
+                    setText(String.format("%.2f", (Double)value));
                 }
                 return c;
             }
         });
+        panel.add(inputPanel, BorderLayout.NORTH);
+        return panel;
     }
 
+
+    private JPanel createChartsPanel() {
+        JPanel panel = new JPanel(new GridLayout(2, 2));
+
+        JFreeChart revenueChart = ChartFactory.createBarChart(
+                "Выручка по месяцам",
+                "Месяц",
+                "Выручка (руб)",
+                createRevenueDataset()
+        );
+        ChartPanel revenueChartPanel = new ChartPanel(revenueChart);
+        panel.add(revenueChartPanel);
+
+        JFreeChart modelsChart = ChartFactory.createPieChart(
+                "Распределение моделей",
+                createModelsDataset(),
+                true,
+                true,
+                false
+        );
+        ChartPanel modelsChartPanel = new ChartPanel(modelsChart);
+        panel.add(modelsChartPanel);
+
+        JFreeChart dailyProfitChart = ChartFactory.createLineChart(
+                "Заработок в день",
+                "Дата продажи",
+                "Заработок (руб/день)",
+                createDailyProfitDataset()
+        );
+        ChartPanel dailyProfitChartPanel = new ChartPanel(dailyProfitChart);
+        panel.add(dailyProfitChartPanel);
+
+        return panel;
+    }
+    private DefaultCategoryDataset createRevenueDataset() {
+        DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+        Map<String, Double> monthlyRevenue = new HashMap<>();
+
+        for (int i = 0; i < tableModel.getRowCount(); i++) {
+            String saleDateStr = (String) tableModel.getValueAt(i, 2); // Дата продажи
+            LocalDate saleDate = LocalDate.parse(saleDateStr, dateFormatter);
+            String monthKey = saleDate.getMonth().toString() + " " + saleDate.getYear();
+            double profit = (Double) tableModel.getValueAt(i, 7); // Выручка
+
+            monthlyRevenue.merge(monthKey, profit, Double::sum);
+        }
+
+        monthlyRevenue.forEach((month, revenue) -> dataset.addValue(revenue, "Выручка", month));
+        return dataset;
+    }
+    private DefaultPieDataset createModelsDataset() {
+        DefaultPieDataset dataset = new DefaultPieDataset();
+        Map<String, Integer> modelCounts = new HashMap<>();
+
+        for (int i = 0; i < tableModel.getRowCount(); i++) {
+            String model =(String) tableModel.getValueAt(i, 1);
+            modelCounts.merge(model, 1, Integer::sum);
+        }
+
+        modelCounts.forEach(dataset::setValue);
+        return dataset;
+    }
+    private DefaultCategoryDataset createDailyProfitDataset() {
+        DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+
+        for (int i = 0; i < tableModel.getRowCount(); i++) {
+            String saleDateStr = (String) tableModel.getValueAt(i, 2);
+            double dailyProfit = (Double) tableModel.getValueAt(i, 7);
+            dataset.addValue(dailyProfit, "Заработок", saleDateStr);
+        }
+
+        return dataset;
+    }
+    private void updateCharts() {
+        chartsPanel.removeAll();
+        chartsPanel = createChartsPanel();
+        tabbedPane.setComponentAt(1, chartsPanel);
+        chartsPanel.revalidate();
+        chartsPanel.repaint();
+    }
     private void parseAndFillFields(String text) {
         try {
             if (text == null || text.trim().isEmpty()) {
@@ -151,10 +271,14 @@ public class PhoneSalesTracker {
             StringBuilder phoneInfo = new StringBuilder();
 
             if (parsedInfo.containsKey("model")) {
-                phoneInfo.append(parsedInfo.get("model"));
+                String model = parsedInfo.get("model");
+                phoneInfo.append(model);
+                modelField.setText(model);
             }
             if (parsedInfo.containsKey("memory")) {
-                phoneInfo.append(", ").append(parsedInfo.get("memory")).append("GB");
+                String memory = parsedInfo.get("memory").toLowerCase().contains("gb") ? parsedInfo.get("memory") : parsedInfo.get("memory") + "Gb";
+                phoneInfo.append(", ").append(memory);
+                modelField.setText(modelField.getText() + ", " + memory);
             }
             if (parsedInfo.containsKey("battery")){
                 phoneInfo.append(", ").append(parsedInfo.get("battery"));
@@ -211,13 +335,16 @@ public class PhoneSalesTracker {
             long daysBetween = ChronoUnit.DAYS.between(purchaseDate, saleDate);
             double profit = salePrice - purchasePrice;
 
-            double dailyProfit = 0;
+            double dailyProfit;
             if (daysBetween > 0) {
                 dailyProfit = profit / daysBetween;
+            }else {
+                dailyProfit = profit;
             }
 
             tableModel.addRow(new Object[]{
                     phoneInfo,
+                    modelField.getText(),
                     purchaseDate.format(dateFormatter),
                     saleDate.format(dateFormatter),
                     purchasePrice,
@@ -232,7 +359,9 @@ public class PhoneSalesTracker {
             saleDateField.setText("");
             purchasePriceField.setText("");
             salePriceField.setText("");
+            updateCharts();
         } catch (Exception ex) {
+            ex.printStackTrace();
             JOptionPane.showMessageDialog(frame,
                     "Ошибка: " + ex.getMessage(),
                     "Ошибка ввода",
@@ -262,9 +391,9 @@ public class PhoneSalesTracker {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
 
-                Object[] rowData = new Object[8];
+                Object[] rowData = new Object[9];
 
-                for (int j = 0; j < 8; j++) {
+                for (int j = 0; j < 9; j++) {
                     Cell cell = row.getCell(j, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
 
                     switch (cell.getCellType()) {
@@ -294,6 +423,7 @@ public class PhoneSalesTracker {
                     "Данные успешно импортированы из " + fileToImport.getName(),
                     "Импорт завершен",
                     JOptionPane.INFORMATION_MESSAGE);
+            updateCharts();
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(frame,
                     "Ошибка при импорте: " + ex.getMessage(),
@@ -302,7 +432,19 @@ public class PhoneSalesTracker {
             ex.printStackTrace();
         }
     }
+    private void deleteSelectedRecord(ActionEvent e) {
+        int selectedRow = table.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(frame,
+                    "Выберите запись для удаления",
+                    "Ошибка",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
+        tableModel.removeRow(selectedRow);
+        updateCharts();
+    }
     private void exportToExcel(ActionEvent e) {
         if (tableModel.getRowCount() == 0) {
             JOptionPane.showMessageDialog(frame,

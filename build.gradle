@@ -1,9 +1,12 @@
 plugins {
     id 'java'
+    id 'application'
 }
 
 group = 'space.reincarnaciya'
 version = '1.0-SNAPSHOT'
+
+mainClassName = 'space.reincarnaciya.PhoneSalesTracker'
 
 repositories {
     mavenCentral()
@@ -13,14 +16,22 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 
-
-
+    implementation 'org.jfree:jfreechart:1.5.3'
     implementation("org.apache.poi:poi:5.2.5")
     implementation("org.apache.poi:poi-ooxml:5.2.5")
-
     implementation("org.apache.poi:poi-excelant:5.2.5")
 }
 
 test {
     useJUnitPlatform()
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'space.reincarnaciya.PhoneSalesTracker'
+    }
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }

@@ -13,6 +13,7 @@ import org.jfree.data.general.DefaultPieDataset;
 
 import java.awt.*;
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.io.File;
 import java.io.FileInputStream;
@@ -20,10 +21,30 @@ import java.io.FileOutputStream;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
 public class PhoneSalesTracker {
+    private BudgetManager budgetManager;
+    private JLabel budgetLabel;
+    private JTextArea budgetHistoryArea;
+
+    private final String[] columnNames = {
+            "Общие сведения о телефоне",
+            "Модель телефона и память",
+            "Дата покупки",
+            "Дата продажи",
+            "Цена покупки",
+            "Цена продажи",
+            "Дней в наличии",
+            "Выручка",
+            "Заработок в день"
+    };
+
+
+
+
     private JFrame frame;
     private JTable table;
     private DefaultTableModel tableModel;
@@ -58,44 +79,46 @@ public class PhoneSalesTracker {
         frame.add(tabbedPane, BorderLayout.CENTER);
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
+
+        budgetManager = new BudgetManager(0); // Начальный бюджет 0
     }
     private JPanel createTablePanel() {
         JPanel panel = new JPanel(new BorderLayout());
-        JTextArea parseTextArea = new JTextArea(5, 40);
-        parseTextArea.setLineWrap(true);
-        JScrollPane parseScrollPane = new JScrollPane(parseTextArea);
 
-        JButton parseButton = new JButton("Разобрать текст");
-        parseButton.addActionListener(e -> parseAndFillFields(parseTextArea.getText()));
+        // Верхняя часть - поля ввода и парсера
+        JPanel inputPanel = createInputPanel(); // Вынесем создание полей ввода в отдельный метод
 
-        JPanel parsePanel = new JPanel(new BorderLayout());
-        parsePanel.add(new JLabel("Вставьте текст с информацией о телефоне:"), BorderLayout.NORTH);
-        parsePanel.add(parseScrollPane, BorderLayout.CENTER);
-        parsePanel.add(parseButton, BorderLayout.SOUTH);
-
-        String[] columnNames = {
-                "Общие сведения о телефоне",
-                "Модель телефона и память",
-                "Дата покупки",
-                "Дата продажи",
-                "Цена покупки",
-                "Цена продажи",
-                "Дней в наличии",
-                "Выручка",
-                "Заработок в день"
-        };
+        // Центральная часть - таблица
         tableModel = new DefaultTableModel(columnNames, 0);
         table = new JTable(tableModel);
         JScrollPane scrollPane = new JScrollPane(table);
-
         panel.add(scrollPane, BorderLayout.CENTER);
 
+        // Нижняя часть - кнопки и бюджет
+        JPanel bottomPanel = new JPanel(new BorderLayout());
+
+        // Панель кнопок
+        JPanel buttonPanel = createButtonPanel(); // Вынесем создание кнопок в отдельный метод
+        bottomPanel.add(buttonPanel, BorderLayout.NORTH);
+
+        // Панель бюджета
+        JPanel budgetPanel = createBudgetPanel(); // Вынесем создание бюджета в отдельный метод
+        bottomPanel.add(budgetPanel, BorderLayout.SOUTH);
+
+        panel.add(inputPanel, BorderLayout.NORTH);
+        panel.add(bottomPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+
+    private JPanel createInputPanel() {
         JPanel inputPanel = new JPanel();
         inputPanel.setLayout(new BoxLayout(inputPanel, BoxLayout.Y_AXIS));
         inputPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
+        // Панель с полями ввода
         JPanel fieldsPanel = new JPanel(new GridLayout(6, 2, 5, 5));
-
 
         fieldsPanel.add(new JLabel("Модель телефона/GB"));
         modelField = new JTextField();
@@ -123,8 +146,26 @@ public class PhoneSalesTracker {
 
         inputPanel.add(fieldsPanel);
         inputPanel.add(Box.createVerticalStrut(10));
+
+        // Панель парсера текста
+        JTextArea parseTextArea = new JTextArea(5, 40);
+        parseTextArea.setLineWrap(true);
+        JScrollPane parseScrollPane = new JScrollPane(parseTextArea);
+
+        JButton parseButton = new JButton("Разобрать текст");
+        parseButton.addActionListener(e -> parseAndFillFields(parseTextArea.getText()));
+
+        JPanel parsePanel = new JPanel(new BorderLayout());
+        parsePanel.add(new JLabel("Вставьте текст с информацией о телефоне:"), BorderLayout.NORTH);
+        parsePanel.add(parseScrollPane, BorderLayout.CENTER);
+        parsePanel.add(parseButton, BorderLayout.SOUTH);
+
         inputPanel.add(parsePanel);
 
+        return inputPanel;
+    }
+
+    private JPanel createButtonPanel() {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
 
         JButton addButton = new JButton("Добавить запись");
@@ -150,27 +191,83 @@ public class PhoneSalesTracker {
         });
         buttonPanel.add(clearButton);
 
-        panel.add(inputPanel, BorderLayout.NORTH);
-        panel.add(buttonPanel, BorderLayout.SOUTH);
+        JButton setBudgetButton = new JButton("Установить начальный бюджет");
+        setBudgetButton.addActionListener(e -> setInitialBudget());
+        buttonPanel.add(setBudgetButton);
 
-        panel.setVisible(true);
+        JButton showHistoryButton = new JButton("История бюджета");
+        showHistoryButton.addActionListener(e -> showBudgetHistory());
+        buttonPanel.add(showHistoryButton);
 
-        table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value,
-                                                           boolean isSelected, boolean hasFocus,
-                                                           int row, int column) {
-                Component c = super.getTableCellRendererComponent(table, value,
-                        isSelected, hasFocus, row, column);
+        return buttonPanel;
+    }
 
-                if (value instanceof Double) {
-                    setText(String.format("%.2f", (Double)value));
-                }
-                return c;
+    private JPanel createBudgetPanel() {
+        JPanel budgetPanel = new JPanel(new BorderLayout());
+        budgetLabel = new JLabel("Текущий бюджет: 0.00 руб.", JLabel.CENTER);
+        budgetLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        budgetPanel.add(budgetLabel, BorderLayout.NORTH);
+
+        budgetHistoryArea = new JTextArea(5, 40);
+        budgetHistoryArea.setEditable(false);
+        JScrollPane historyScrollPane = new JScrollPane(budgetHistoryArea);
+
+        JPanel historyPanel = new JPanel(new BorderLayout());
+        historyPanel.add(new JLabel("История операций:"), BorderLayout.NORTH);
+        historyPanel.add(historyScrollPane, BorderLayout.CENTER);
+
+        budgetPanel.add(historyPanel, BorderLayout.CENTER);
+
+        return budgetPanel;
+    }
+
+    // Новые методы для работы с бюджетом:
+    private void setInitialBudget() {
+        String input = JOptionPane.showInputDialog(frame,
+                "Введите начальный бюджет:",
+                budgetManager.getInitialBudget());
+        if (input != null && !input.trim().isEmpty()) {
+            try {
+                double newBudget = Double.parseDouble(input.trim());
+                budgetManager = new BudgetManager(newBudget);
+                updateBudgetDisplay();
+                JOptionPane.showMessageDialog(frame,
+                        "Начальный бюджет установлен: " + newBudget + " руб.",
+                        "Успех",
+                        JOptionPane.INFORMATION_MESSAGE);
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(frame,
+                        "Введите корректную сумму",
+                        "Ошибка",
+                        JOptionPane.ERROR_MESSAGE);
             }
-        });
-        panel.add(inputPanel, BorderLayout.NORTH);
-        return panel;
+        }
+    }
+
+    private void updateBudgetDisplay() {
+        budgetLabel.setText(String.format("Текущий бюджет: %.2f руб.",
+                budgetManager.getCurrentBudget()));
+
+        StringBuilder historyText = new StringBuilder();
+        for (String transaction : budgetManager.getTransactionHistory()) {
+            historyText.append(transaction).append("\n");
+        }
+        budgetHistoryArea.setText(historyText.toString());
+    }
+
+    private void showBudgetHistory() {
+        JDialog historyDialog = new JDialog(frame, "История операций с бюджетом", true);
+        historyDialog.setSize(500, 400);
+
+        JTextArea historyArea = new JTextArea();
+        historyArea.setEditable(false);
+        for (String transaction : budgetManager.getTransactionHistory()) {
+            historyArea.append(transaction + "\n");
+        }
+
+        historyDialog.add(new JScrollPane(historyArea));
+        historyDialog.setLocationRelativeTo(frame);
+        historyDialog.setVisible(true);
     }
 
 
@@ -360,6 +457,12 @@ public class PhoneSalesTracker {
             purchasePriceField.setText("");
             salePriceField.setText("");
             updateCharts();
+
+            budgetManager.subtractFunds(purchasePrice, "Покупка телефона " + modelField.getText());
+            budgetManager.addFunds(salePrice, "Продажа телефона " + modelField.getText());
+
+            updateBudgetDisplay();
+
         } catch (Exception ex) {
             ex.printStackTrace();
             JOptionPane.showMessageDialog(frame,
@@ -383,8 +486,8 @@ public class PhoneSalesTracker {
         File fileToImport = fileChooser.getSelectedFile();
 
         try (Workbook workbook = WorkbookFactory.create(new FileInputStream(fileToImport))) {
+            // Импорт данных о продажах
             Sheet sheet = workbook.getSheetAt(0);
-
             tableModel.setRowCount(0);
 
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
@@ -392,10 +495,8 @@ public class PhoneSalesTracker {
                 if (row == null) continue;
 
                 Object[] rowData = new Object[9];
-
                 for (int j = 0; j < 9; j++) {
                     Cell cell = row.getCell(j, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
-
                     switch (cell.getCellType()) {
                         case STRING:
                             rowData[j] = cell.getStringCellValue();
@@ -415,10 +516,57 @@ public class PhoneSalesTracker {
                             rowData[j] = cell.toString();
                     }
                 }
-
                 tableModel.addRow(rowData);
             }
 
+            // Импорт бюджета
+            Sheet budgetSheet = workbook.getSheet("Бюджет");
+            if (budgetSheet != null) {
+                Row budgetRow = budgetSheet.getRow(0);
+                if (budgetRow != null) {
+                    Cell initialBudgetCell = budgetRow.getCell(0);
+                    if (initialBudgetCell != null && initialBudgetCell.getCellType() == CellType.NUMERIC) {
+                        double initialBudget = initialBudgetCell.getNumericCellValue();
+
+                        // Создаём временный список для истории
+                        java.util.List<String> importedHistory = new ArrayList<>();
+                        double lastBudgetValue = initialBudget;
+
+
+                        // Собираем историю из файла (начиная со второй строки)
+                        for (int i = 1; i <= budgetSheet.getLastRowNum(); i++) {
+                            Row historyRow = budgetSheet.getRow(i);
+                            if (historyRow != null) {
+                                Cell historyCell = historyRow.getCell(0);
+                                if (historyCell != null && historyCell.getCellType() == CellType.STRING) {
+                                    String transaction = historyCell.getStringCellValue();
+                                    importedHistory.add(transaction);
+
+                                    // Парсим последнее значение бюджета из записи
+                                    String[] parts = transaction.split("\\(Текущий бюджет: ");
+                                    if (parts.length > 1) {
+                                        String budgetPart = parts[1].replace(" руб.)", "").replace(",", ".").trim();
+                                        try {
+                                            lastBudgetValue = Double.parseDouble(budgetPart);
+                                        } catch (NumberFormatException ex) {
+                                            // Если не удалось распарсить, используем предыдущее значение
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Создаём BudgetManager с последним актуальным значением бюджета
+                        budgetManager = new BudgetManager(lastBudgetValue);
+                        // Очищаем автоматически добавленную запись об инициализации
+                        budgetManager.getTransactionHistory().clear();
+                        // Добавляем все импортированные записи
+                        budgetManager.getTransactionHistory().addAll(importedHistory);
+                    }
+                }
+            }
+
+            updateBudgetDisplay();
             JOptionPane.showMessageDialog(frame,
                     "Данные успешно импортированы из " + fileToImport.getName(),
                     "Импорт завершен",
@@ -490,6 +638,16 @@ public class PhoneSalesTracker {
                         }
                     }
                 }
+            }
+
+            Sheet budgetSheet = workbook.createSheet("Бюджет");
+            Row initialBudgetRow = budgetSheet.createRow(0);
+            initialBudgetRow.createCell(0).setCellValue(budgetManager.getInitialBudget());
+
+            java.util.List<String> history = budgetManager.getTransactionHistory();
+            for (int i = 0; i < history.size(); i++) {
+                Row historyRow = budgetSheet.createRow(i + 1);
+                historyRow.createCell(0).setCellValue(history.get(i));
             }
 
             for (int i = 0; i < tableModel.getColumnCount(); i++) {
